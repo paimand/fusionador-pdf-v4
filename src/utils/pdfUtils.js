@@ -15,12 +15,13 @@ async function cleanPdfBuffer(inputBuffer) {
 
     fs.writeFileSync(inPath, inputBuffer);
 
-    // Ejecuta qpdf para desencriptar y reparar la estructura del PDF
     exec(`qpdf --decrypt "${inPath}" "${outPath}"`, (error) => {
       let finalBuffer = inputBuffer;
       if (!error && fs.existsSync(outPath)) {
-        finalBuffer = fs.readFileSync(outPath);
-        try { fs.unlinkSync(outPath); } catch (e) {}
+        try {
+          finalBuffer = fs.readFileSync(outPath);
+          fs.unlinkSync(outPath);
+        } catch (e) {}
       }
       try { fs.unlinkSync(inPath); } catch (e) {}
       resolve(finalBuffer);
@@ -29,15 +30,32 @@ async function cleanPdfBuffer(inputBuffer) {
 }
 
 /**
- * Convierte rangos o cadenas de páginas en un array numérico manteniendo el orden original.
+ * Convierte cualquier formato de lista/rango de páginas (base 1) a un array numérico de índices (base 0)
+ * Ejemplos aceptados: "1-3, 5", "1,2,3", [1,2,3], "3,1,2"
  */
-function parsePageRanges(rangesStr, totalPages) {
-  if (!rangesStr) return [];
-  const parts = rangesStr.split(',');
+function parsePageRanges(input, totalPages) {
+  if (!input) return [];
+  
+  let strInput = '';
+  if (Array.isArray(input)) {
+    strInput = input.join(',');
+  } else if (typeof input === 'object') {
+    strInput = JSON.stringify(input);
+  } else {
+    strInput = String(input);
+  }
+
+  // Limpiar caracteres extraños excepto números, guiones y comas
+  const cleanedStr = strInput.replace(/[^\d,-]/g, '');
+  if (!cleanedStr) return [];
+
+  const parts = cleanedStr.split(',');
   const result = [];
 
   for (const part of parts) {
     const trimmed = part.trim();
+    if (!trimmed) continue;
+
     if (trimmed.includes('-')) {
       const [startStr, endStr] = trimmed.split('-');
       const start = parseInt(startStr, 10);
@@ -57,10 +75,23 @@ function parsePageRanges(rangesStr, totalPages) {
       }
     }
   }
+
   return result;
+}
+
+/**
+ * Extrae de forma segura el archivo recibido en la petición Multer
+ */
+function getUploadedFile(req) {
+  if (req.file) return req.file;
+  if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+    return req.files[0];
+  }
+  return null;
 }
 
 module.exports = {
   cleanPdfBuffer,
-  parsePageRanges
+  parsePageRanges,
+  getUploadedFile
 };
