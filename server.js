@@ -13,10 +13,15 @@ app.use(express.urlencoded({ extended: true }));
 const mergeRoute = require('./src/routes/mergeRoute');
 const splitRoute = require('./src/routes/splitRoute');
 const deleteRoute = require('./src/routes/deleteRoute');
+const compressRoute = require('./src/routes/compressRoute');
 
+// Registro de endpoints y alias
 app.use('/merge', mergeRoute);
 app.use('/split', splitRoute);
+app.use('/extract', splitRoute); // Alias: Extraer utiliza la lógica de split
+app.use('/reorder', splitRoute); // Alias: Reordenar utiliza la lógica de split
 app.use('/delete', deleteRoute);
+app.use('/compress', compressRoute);
 
 // Captura de rutas no encontradas
 app.use((req, res) => {
