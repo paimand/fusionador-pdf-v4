@@ -4,9 +4,10 @@ const { PDFDocument } = require('pdf-lib');
 const upload = require('../utils/uploadConfig');
 const { cleanPdfBuffer } = require('../utils/pdfUtils');
 
-router.post('/', upload.single('pdf'), async (req, res) => {
+router.post('/', upload.any(), async (req, res) => {
   try {
-    if (!req.file) {
+    const file = req.files && req.files.length > 0 ? req.files[0] : null;
+    if (!file) {
       return res.status(400).send('No se ha recibido ningún archivo PDF.');
     }
 
@@ -15,7 +16,7 @@ router.post('/', upload.single('pdf'), async (req, res) => {
       .map(p => parseInt(p.trim(), 10) - 1)
       .filter(p => !isNaN(p));
 
-    const cleanedBuffer = await cleanPdfBuffer(req.file.buffer);
+    const cleanedBuffer = await cleanPdfBuffer(file.buffer);
     const srcDoc = await PDFDocument.load(cleanedBuffer, { ignoreEncryption: true });
     const totalPages = srcDoc.getPageCount();
 
@@ -40,7 +41,7 @@ router.post('/', upload.single('pdf'), async (req, res) => {
     return res.send(Buffer.from(pdfBytes));
 
   } catch (error) {
-    console.error('Error en /delete:', error);
+    console.error('Error en deleteRoute:', error);
     res.status(500).send('Error al eliminar páginas del PDF.');
   }
 });
