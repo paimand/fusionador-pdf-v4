@@ -3,24 +3,24 @@ const router = express.Router();
 const { PDFDocument } = require('pdf-lib');
 const JSZip = require('jszip');
 const upload = require('../utils/uploadConfig');
-const { cleanPdfBuffer, parsePageRanges } = require('../utils/pdfUtils');
+const { cleanPdfBuffer, parsePageRanges, getUploadedFile } = require('../utils/pdfUtils');
 
 router.post('/', upload.any(), async (req, res) => {
   try {
-    const file = req.files && req.files.length > 0 ? req.files[0] : null;
+    const file = getUploadedFile(req);
     if (!file) {
       return res.status(400).send('No se ha recibido ningún archivo PDF.');
     }
 
-    const mode = req.body.mode || 'individual';
-    const ranges = req.body.ranges || req.body.pages || '';
+    const mode = req.body.mode || req.body.splitMode || 'individual';
+    const rawPages = req.body.ranges || req.body.pages || req.body.order || req.body.pageOrder || '';
 
     const cleanedBuffer = await cleanPdfBuffer(file.buffer);
     const srcDoc = await PDFDocument.load(cleanedBuffer, { ignoreEncryption: true });
     const totalPages = srcDoc.getPageCount();
 
-    // MODO 1: Dividir en páginas individuales (Devuelve un archivo ZIP)
-    if (mode === 'individual' && !ranges) {
+    // MODO 1: Dividir en páginas individuales (Devuelve archivo ZIP)
+    if ((mode === 'individual' || mode === 'split_all') && !rawPages) {
       const zip = new JSZip();
 
       for (let i = 0; i < totalPages; i++) {
@@ -37,21 +37,18 @@ router.post('/', upload.any(), async (req, res) => {
       return res.send(zipBuffer);
     }
 
-    // MODO 2: Extraer/Reordenar por rangos o selección explícita
-    let targetIndices = [];
-    if (ranges) {
-      targetIndices = parsePageRanges(ranges, totalPages);
-    } else {
-      targetIndices = Array.from({ length: totalPages }, (_, i) => i);
-    }
+    // MODO 2: Extraer / Reordenar páginas según los índices seleccionados
+    const targetIndices = parsePageRanges(rawPages, totalPages);
 
     if (targetIndices.length === 0) {
-      return res.status(400).send('No se han seleccionado páginas válidas.');
+      return res.status(400).send('No se han especificado páginas válidas para procesar.');
     }
 
     const newPdf = await PDFDocument.create();
-    for (const idx of targetIndices) {
-      const [copiedPage] = await newPdf.copyPages(srcDoc, [idx]);
+    
+    // Copiamos página por página manteniendo exactamente el orden dado por targetIndices
+    for (const pageIdx of targetIndices) {
+      const [copiedPage] = await newPdf.copyPages(srcDoc, [pageIdx]);
       newPdf.addPage(copiedPage);
     }
 
@@ -62,7 +59,7 @@ router.post('/', upload.any(), async (req, res) => {
 
   } catch (error) {
     console.error('Error en splitRoute:', error);
-    res.status(500).send('Error procesando el PDF.');
+    res.status(500).send('Error procesando el archivo PDF.');
   }
 });
 
