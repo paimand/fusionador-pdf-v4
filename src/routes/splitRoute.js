@@ -5,16 +5,17 @@ const JSZip = require('jszip');
 const upload = require('../utils/uploadConfig');
 const { cleanPdfBuffer, parsePageRanges } = require('../utils/pdfUtils');
 
-router.post('/', upload.single('pdf'), async (req, res) => {
+router.post('/', upload.any(), async (req, res) => {
   try {
-    if (!req.file) {
+    const file = req.files && req.files.length > 0 ? req.files[0] : null;
+    if (!file) {
       return res.status(400).send('No se ha recibido ningún archivo PDF.');
     }
 
     const mode = req.body.mode || 'individual';
     const ranges = req.body.ranges || req.body.pages || '';
 
-    const cleanedBuffer = await cleanPdfBuffer(req.file.buffer);
+    const cleanedBuffer = await cleanPdfBuffer(file.buffer);
     const srcDoc = await PDFDocument.load(cleanedBuffer, { ignoreEncryption: true });
     const totalPages = srcDoc.getPageCount();
 
@@ -60,8 +61,8 @@ router.post('/', upload.single('pdf'), async (req, res) => {
     return res.send(Buffer.from(pdfBytes));
 
   } catch (error) {
-    console.error('Error en /split:', error);
-    res.status(500).send('Error procesando la división o selección del PDF.');
+    console.error('Error en splitRoute:', error);
+    res.status(500).send('Error procesando el PDF.');
   }
 });
 
