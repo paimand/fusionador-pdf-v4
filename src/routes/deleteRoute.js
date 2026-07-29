@@ -2,38 +2,45 @@ const express = require('express');
 const router = express.Router();
 const { PDFDocument } = require('pdf-lib');
 const upload = require('../utils/uploadConfig');
-const { cleanPdfBuffer } = require('../utils/pdfUtils');
+const { cleanPdfBuffer, parsePageRanges, getUploadedFile } = require('../utils/pdfUtils');
 
 router.post('/', upload.any(), async (req, res) => {
   try {
-    const file = req.files && req.files.length > 0 ? req.files[0] : null;
+    const file = getUploadedFile(req);
     if (!file) {
       return res.status(400).send('No se ha recibido ningún archivo PDF.');
     }
 
-    const pagesToDelete = (req.body.pages || '')
-      .split(',')
-      .map(p => parseInt(p.trim(), 10) - 1)
-      .filter(p => !isNaN(p));
+    const rawPagesToDelete = req.body.pages || req.body.pagesToDelete || req.body.deletedPages || '';
 
     const cleanedBuffer = await cleanPdfBuffer(file.buffer);
     const srcDoc = await PDFDocument.load(cleanedBuffer, { ignoreEncryption: true });
     const totalPages = srcDoc.getPageCount();
 
-    const pagesToKeep = [];
+    // Obtener los índices de base-0 que se van a ELIMINAR
+    const indicesToDelete = parsePageRanges(rawPagesToDelete, totalPages);
+
+    if (indicesToDelete.length === 0) {
+      return res.status(400).send('No se han seleccionado páginas para eliminar.');
+    }
+
+    // Calcular las páginas a CONSERVAR
+    const indicesToKeep = [];
     for (let i = 0; i < totalPages; i++) {
-      if (!pagesToDelete.includes(i)) {
-        pagesToKeep.push(i);
+      if (!indicesToDelete.includes(i)) {
+        indicesToKeep.push(i);
       }
     }
 
-    if (pagesToKeep.length === 0) {
+    if (indicesToKeep.length === 0) {
       return res.status(400).send('No puedes eliminar todas las páginas del documento.');
     }
 
     const newPdf = await PDFDocument.create();
-    const copiedPages = await newPdf.copyPages(srcDoc, pagesToKeep);
-    copiedPages.forEach(p => newPdf.addPage(p));
+    for (const pageIdx of indicesToKeep) {
+      const [copiedPage] = await newPdf.copyPages(srcDoc, [pageIdx]);
+      newPdf.addPage(copiedPage);
+    }
 
     const pdfBytes = await newPdf.save();
     res.setHeader('Content-Type', 'application/pdf');
