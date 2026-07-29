@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eliminar Páginas PDF - Suite PDF</title>
+    
+    <!-- Librería externa -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <!-- Fuentes y estilos -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/delete.css">
+</head>
+<body>
+
+    <div id="app-header"></div>
+    
+    <div class="container">
+        <header class="tool-header">
+            <h1>Eliminar Páginas PDF</h1>
+            <p>Selecciona las páginas que deseas eliminar de tu documento PDF.</p>
+        </header>
+
+        <!-- Área de subida -->
+        <div class="upload-area" id="dropZoneDelete">
+            <p>Arrastra o selecciona un PDF para eliminar páginas</p>
+            <input type="file" id="fileInputDelete" accept=".pdf">
+        </div>
+
+        <!-- Previsualización de páginas -->
+        <div id="deletePreview" style="display:none; margin-bottom:16px;">
+            <div class="grid-controls" style="margin-bottom: 12px;">
+                <button id="deleteSelectAll" class="btn btn-secondary" style="padding:6px 14px;">Marcar todas</button>
+                <button id="deleteDeselectAll" class="btn btn-secondary" style="padding:6px 14px;">Desmarcar todas</button>
+            </div>
+            <div id="deletePageGrid" class="page-grid"></div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="actions">
+            <button id="deleteBtn" class="btn btn-primary">Eliminar Páginas</button>
+        </div>
+        
+        <div id="deleteStatus" style="margin-top:12px;"></div>
+        <div id="loading" style="display:none;">⏳ Procesando...</div>
+    </div>
+
+    <div id="app-footer"></div>
+
+    <!-- Scripts modularizados -->
+    <script src="/js/common.js"></script>
+    <script src="/js/delete.js"></script>
+    
+</body>
+</html>

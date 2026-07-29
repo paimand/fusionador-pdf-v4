@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dividir PDF - Suite PDF</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/common.css">
+    <style>
+        .split-options {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .option-card {
+            flex: 1;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: #fff;
+        }
+        .option-card.active {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+        }
+        .option-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .option-card p {
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .selection-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .btn-link-action {
+            background: none;
+            border: none;
+            color: #2563eb;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .btn-link-action:hover {
+            background: #eff6ff;
+        }
+
+        /* VISTA DE MINIATURAS (INDIVIDUAL) */
+        .page-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+            max-height: 480px;
+            overflow-y: auto;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        .page-card {
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 8px;
+            background: #fff;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s ease;
+            position: relative;
+            opacity: 0.6;
+        }
+        .page-card.selected {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+            opacity: 1;
+        }
+        .page-card canvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            display: block;
+            margin: 0 auto 6px;
+        }
+        .page-card span {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        /* BLOQUES DE RANGOS DINÁMICOS */
+        .ranges-container {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .range-item {
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+        .range-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .range-inputs {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #1e293b;
+        }
+        .range-inputs input {
+            width: 70px;
+            padding: 6px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: 600;
+        }
+        .btn-remove-range {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 4px 8px;
+        }
+        
+        /* PREVISUALIZACIÓN DE MINIATURAS EN RANGOS */
+        .range-thumbnails {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 8px 4px;
+            background: #f1f5f9;
+            border-radius: 8px;
+            min-height: 80px;
+            align-items: center;
+        }
+        .thumb-mini-card {
+            flex: 0 0 auto;
+            text-align: center;
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 4px;
+            width: 70px;
+        }
+        .thumb-mini-card canvas {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .thumb-mini-card span {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .btn-add-range {
+            background: #e2e8f0;
+            border: none;
+            color: #1e293b;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .btn-add-range:hover {
+            background: #cbd5e1;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
+            font-size: 0.9rem;
+            color: #334155;
+            font-weight: 500;
+        }
+        .checkbox-container input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app-header"></div>
+    
+    <div class="container">
+        <header class="tool-header">
+            
+            <h1 style="margin-top:10px;">Dividir PDF</h1>
+            <p>Divide un PDF en páginas sueltas o extrae rangos con vista previa visual.</p>
+        </header>
+
+        <div class="upload-area" id="dropZoneSplit">
+            <p>Arrastra o selecciona tu archivo PDF aquí</p>
+            <input type="file" id="fileInputSplit" accept=".pdf">
+        </div>
+
+        <div id="splitWorkspace" style="display:none; margin-top:20px;">
+            <p id="selectedFileName" style="font-weight:600; margin-bottom:16px; color:#1e293b;"></p>
+
+            <div class="split-options">
+                <div class="option-card active" id="modeIndividual" onclick="selectMode('individual')">
+                    <h3>Páginas individuales</h3>
+                    <p>Selecciona las páginas que deseas extraer (.ZIP)</p>
+                </div>
+                <div class="option-card" id="modeRanges" onclick="selectMode('range')">
+                    <h3>Dividir por rangos</h3>
+                    <p>Crea bloques de páginas con vista previa</p>
+                </div>
+            </div>
+
+            <div id="individualSection">
+                <div class="selection-toolbar">
+                    <p style="font-size:0.85rem; color:#64748b; margin:0;">Haz clic en las páginas para marcarlas/desmarcarlas:</p>
+                    <div>
+                        <button type="button" class="btn-link-action" onclick="selectAllIndividualPages(true)">Seleccionar todas</button>
+                        <button type="button" class="btn-link-action" onclick="selectAllIndividualPages(false)">Desmarcar todas</button>
+                    </div>
+                </div>
+                <div id="individualGrid" class="page-grid"></div>
+            </div>
+
+            <div id="rangesSection" class="ranges-container" style="display:none;">
+                <div id="rangesList"></div>
+
+                <button type="button" class="btn-add-range" onclick="addRangeRow()">+ Añadir rango</button>
+
+                <div class="checkbox-container">
+                    <input type="checkbox" id="mergeRangesCheck" checked>
+                    <label for="mergeRangesCheck">Unir todos los rangos en un único archivo PDF</label>
+                </div>
+            </div>
+
+            <div class="actions" style="margin-top:24px;">
+                <button id="splitBtn" class="btn btn-primary" style="width:100%;">Dividir PDF</button>
+            </div>
+            
+            <div id="splitStatus" style="margin-top:12px;"></div>
+        </div>
+    </div>
+
+    <div id="app-footer"></div>
+
+    <script src="/js/common.js"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        let selectedFile = null;
+        let pdfDocInstance = null;
+        let pdfTotalPages = 1;
+        let currentMode = 'individual'; 
+        let selectedPagesSet = new Set();
+
+        // Configuración de zona de carga de archivos
+        setupDropZone('dropZoneSplit', 'fileInputSplit', async files => {
+            if (!files || files.length === 0) return;
+            
+            selectedFile = files[0];
+            document.getElementById('selectedFileName').textContent = `📄 Documento: ${selectedFile.name}`;
+            
+            try {
+                if (typeof showLoading === 'function') showLoading(true);
+
+                const arrayBuffer = await selectedFile.arrayBuffer();
+                const typedarray = new Uint8Array(arrayBuffer);
+
+                pdfDocInstance = await pdfjsLib.getDocument({ data: typedarray }).promise;
+                pdfTotalPages = pdfDocInstance.numPages;
+
+                // Al cargar por defecto, seleccionamos todas las páginas
+                selectedPagesSet.clear();
+                for (let i = 1; i <= pdfTotalPages; i++) selectedPagesSet.add(i);
+
+                document.getElementById('splitWorkspace').style.display = 'block';
+                document.getElementById('dropZoneSplit').style.display = 'none';
+
+                await renderIndividualGrid();
+                resetRanges();
+            } catch(e) {
+                console.error("Error al cargar PDF:", e);
+                alert('Error leyendo el archivo PDF: ' + e.message);
+            } finally {
+                if (typeof showLoading === 'function') showLoading(false);
+            }
+        });
+
+        function selectMode(mode) {
+            currentMode = mode;
+            if (mode === 'individual') {
+                document.getElementById('modeIndividual').classList.add('active');
+                document.getElementById('modeRanges').classList.remove('active');
+                document.getElementById('individualSection').style.display = 'block';
+                document.getElementById('rangesSection').style.display = 'none';
+            } else {
+                document.getElementById('modeRanges').classList.add('active');
+                document.getElementById('modeIndividual').classList.remove('active');
+                document.getElementById('individualSection').style.display = 'none';
+                document.getElementById('rangesSection').style.display = 'block';
+            }
+        }
+
+        // ============================================================
+        // RENDERIZAR GRID INDIVIDUAL
+        // ============================================================
+        async function renderIndividualGrid() {
+            const grid = document.getElementById('individualGrid');
+            grid.innerHTML = '';
+
+            for (let i = 1; i <= pdfTotalPages; i++) {
+                const isSelected = selectedPagesSet.has(i);
+                const card = document.createElement('div');
+                card.className = `page-card ${isSelected ? 'selected' : ''}`;
+                card.id = `ind_card_${i}`;
+                
+                const canvas = document.createElement('canvas');
+                const span = document.createElement('span');
+                span.textContent = `Pág. ${i}`;
+
+                card.appendChild(canvas);
+                card.appendChild(span);
+
+                card.addEventListener('click', () => {
+                    if (selectedPagesSet.has(i)) {
+                        selectedPagesSet.delete(i);
+                        card.classList.remove('selected');
+                    } else {
+                        selectedPagesSet.add(i);
+                        card.classList.add('selected');
+                    }
+                });
+
+                grid.appendChild(card);
+                renderPageMiniature(i, canvas, 0.2);
+            }
+        }
+
+        function selectAllIndividualPages(select) {
+            selectedPagesSet.clear();
+            for (let i = 1; i <= pdfTotalPages; i++) {
+                const card = document.getElementById(`ind_card_${i}`);
+                if (select) {
+                    selectedPagesSet.add(i);
+                    if (card) card.classList.add('selected');
+                } else {
+                    if (card) card.classList.remove('selected');
+                }
+            }
+        }
+
+        // ============================================================
+        // GESTIÓN DE RANGOS DINÁMICOS
+        // ============================================================
+        function resetRanges() {
+            const list = document.getElementById('rangesList');
+            list.innerHTML = '';
+            addRangeRow(1, pdfTotalPages);
+        }
+
+        function addRangeRow(from = 1, to = pdfTotalPages) {
+            const list = document.getElementById('rangesList');
+            const rangeId = 'r_' + Math.random().toString(36).substring(2, 9);
+
+            const row = document.createElement('div');
+            row.className = 'range-item';
+            row.id = rangeId;
+            row.innerHTML = `
+                <div class="range-header">
+                    <div class="range-inputs">
+                        <span class="range-title">Rango ${list.children.length + 1}: Desde</span>
+                        <input type="number" class="range-from" min="1" max="${pdfTotalPages}" value="${from}">
+                        <span>hasta</span>
+                        <input type="number" class="range-to" min="1" max="${pdfTotalPages}" value="${to}">
+                    </div>
+                    <button type="button" class="btn-remove-range" onclick="removeRangeRow('${rangeId}')">✕</button>
+                </div>
+                <div class="range-thumbnails" id="thumbs_${rangeId}"></div>
+            `;
+            list.appendChild(row);
+
+            const fromInput = row.querySelector('.range-from');
+            const toInput = row.querySelector('.range-to');
+
+            const updateThumbs = () => {
+                let f = parseInt(fromInput.value, 10) || 1;
+                let t = parseInt(toInput.value, 10) || pdfTotalPages;
+                f = Math.max(1, Math.min(pdfTotalPages, f));
+                t = Math.max(1, Math.min(pdfTotalPages, t));
+                renderRangeThumbnails(`thumbs_${rangeId}`, f, t);
+            };
+
+            fromInput.addEventListener('change', updateThumbs);
+            toInput.addEventListener('change', updateThumbs);
+
+            updateRangeTitles();
+            updateThumbs();
+        }
+
+        function removeRangeRow(id) {
+            const row = document.getElementById(id);
+            if (row) row.remove();
+            updateRangeTitles();
+        }
+
+        function updateRangeTitles() {
+            const items = document.querySelectorAll('.range-item');
+            items.forEach((item, index) => {
+                const titleSpan = item.querySelector('.range-title');
+                if (titleSpan) titleSpan.textContent = `Rango ${index + 1}: Desde`;
+            });
+        }
+
+        async function renderRangeThumbnails(containerId, start, end) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+
+            const pStart = Math.min(start, end);
+            const pEnd = Math.max(start, end);
+
+            for (let i = pStart; i <= pEnd; i++) {
+                const mini = document.createElement('div');
+                mini.className = 'thumb-mini-card';
+                
+                const canvas = document.createElement('canvas');
+                const span = document.createElement('span');
+                span.textContent = `Pág ${i}`;
+
+                mini.appendChild(canvas);
+                mini.appendChild(span);
+                container.appendChild(mini);
+
+                renderPageMiniature(i, canvas, 0.15);
+            }
+        }
+
+        async function renderPageMiniature(pageNum, canvas, scale) {
+            if (!pdfDocInstance) return;
+            try {
+                const page = await pdfDocInstance.getPage(pageNum);
+                const viewport = page.getViewport({ scale });
+                const ctx = canvas.getContext('2d');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({ canvasContext: ctx, viewport }).promise;
+            } catch (err) {
+                console.error(`Error renderizando página ${pageNum}:`, err);
+            }
+        }
+
+        // ============================================================
+        // PROCESAR DIVISIÓN AL SERVIDOR
+        // ============================================================
+        document.getElementById('splitBtn').addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            const splitBtn = document.getElementById('splitBtn');
+            splitBtn.disabled = true;
+            if (typeof showLoading === 'function') showLoading(true);
+
+            try {
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                if (currentMode === 'individual') {
+                    formData.append('mode', 'individual');
+                    const sortedPages = Array.from(selectedPagesSet).sort((a, b) => a - b);
+                    if (sortedPages.length === 0) {
+                        throw new Error('Debes seleccionar al menos una página para dividir.');
+                    }
+                    formData.append('ranges', sortedPages.join(','));
+                } else {
+                    formData.append('mode', 'range');
+                    const items = document.querySelectorAll('.range-item');
+                    const rangesArray = [];
+
+                    items.forEach(item => {
+                        const from = item.querySelector('.range-from').value;
+                        const to = item.querySelector('.range-to').value;
+                        if (from && to) {
+                            rangesArray.push(`${from}-${to}`);
+                        }
+                    });
+
+                    if (rangesArray.length === 0) {
+                        throw new Error('Debes definir al menos un rango de páginas.');
+                    }
+
+                    formData.append('ranges', rangesArray.join(','));
+                    formData.append('mergeRanges', document.getElementById('mergeRangesCheck').checked);
+                }
+
+                const resp = await fetch('/split', { method: 'POST', body: formData });
+                if (!resp.ok) {
+                    const errText = await resp.text();
+                    throw new Error(errText);
+                }
+
+                const contentType = resp.headers.get('content-type') || '';
+                const isZip = contentType.includes('application/zip');
+                const defaultFilename = isZip ? 'paginas_divididas.zip' : 'documento_dividido.pdf';
+
+                const blob = await resp.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = defaultFilename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+                
+                if (typeof showStatus === 'function') showStatus('splitStatus', '✅ Operación completada con éxito');
+            } catch (err) {
+                if (typeof showStatus === 'function') {
+                    showStatus('splitStatus', '❌ ' + err.message, true);
+                } else {
+                    alert('Error: ' + err.message);
+                }
+            } finally {
+                splitBtn.disabled = false;
+                if (typeof showLoading === 'function') showLoading(false);
+            }
+        });
+    </script>
+</body>
+</html>
