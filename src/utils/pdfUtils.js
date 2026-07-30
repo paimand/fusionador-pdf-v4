@@ -5,6 +5,8 @@ const os = require('os');
 
 /**
  * Procesa un Buffer PDF mediante qpdf para desencriptarlo/repararlo si es necesario.
+ * @param {Buffer} inputBuffer - Buffer del PDF original
+ * @returns {Promise<Buffer>} - Buffer del PDF limpio
  */
 async function cleanPdfBuffer(inputBuffer) {
   return new Promise((resolve) => {
@@ -32,6 +34,9 @@ async function cleanPdfBuffer(inputBuffer) {
 /**
  * Convierte cualquier formato de lista/rango de páginas (base 1) a un array numérico de índices (base 0)
  * Ejemplos aceptados: "1-3, 5", "1,2,3", [1,2,3], "3,1,2"
+ * @param {string|number[]} input - Entrada en formato texto o array
+ * @param {number} totalPages - Número total de páginas del documento
+ * @returns {number[]} - Array de índices (base 0)
  */
 function parsePageRanges(input, totalPages) {
   if (!input) return [];
@@ -81,6 +86,8 @@ function parsePageRanges(input, totalPages) {
 
 /**
  * Extrae de forma segura el archivo recibido en la petición Multer
+ * @param {Object} req - Objeto de solicitud de Express
+ * @returns {Object|null} - Archivo subido (file) o null si no hay
  */
 function getUploadedFile(req) {
   if (req.file) return req.file;
@@ -90,8 +97,24 @@ function getUploadedFile(req) {
   return null;
 }
 
+/**
+ * Crea un nuevo PDF a partir de un buffer y una lista de índices de páginas (base 0)
+ * @param {Buffer} pdfBuffer - Buffer del PDF original (preferiblemente ya limpio)
+ * @param {number[]} indices - Array de índices de páginas (base 0) a incluir
+ * @returns {Promise<Buffer>} - Buffer del nuevo PDF
+ */
+async function createPdfFromIndices(pdfBuffer, indices) {
+  const { PDFDocument } = require('pdf-lib');
+  const pdf = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+  const newPdf = await PDFDocument.create();
+  const pages = await newPdf.copyPages(pdf, indices);
+  pages.forEach((page) => newPdf.addPage(page));
+  return await newPdf.save();
+}
+
 module.exports = {
   cleanPdfBuffer,
   parsePageRanges,
-  getUploadedFile
+  getUploadedFile,
+  createPdfFromIndices // <-- Nueva función exportada
 };
