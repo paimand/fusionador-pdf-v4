@@ -5,6 +5,8 @@ const JSZip = require('jszip');
 const upload = require('../utils/uploadConfig');
 const { cleanPdfBuffer, parsePageRanges, getUploadedFile } = require('../utils/pdfUtils');
 
+// Esta ruta SOLO gestiona la herramienta "Dividir PDF" (páginas individuales y por rangos).
+// Extraer y Ordenar tienen ahora sus propias rutas (extractRoute.js, reorderRoute.js).
 router.post('/', upload.any(), async (req, res) => {
   try {
     const file = getUploadedFile(req);
@@ -13,25 +15,17 @@ router.post('/', upload.any(), async (req, res) => {
     }
 
     const mode = req.body.mode || req.body.splitMode || 'individual';
-    const rawPages = req.body.ranges || req.body.pages || req.body.order || req.body.pageOrder || '';
+    const rawPages = req.body.ranges || req.body.pages || '';
 
     // Flag para "Unir todos los rangos en un único archivo PDF" (checkbox del frontend).
-    // Acepta true/"true"/"on"/"1" por si el checkbox llega como string desde FormData.
     const mergeRanges = ['true', 'on', '1', true].includes(req.body.mergeRanges);
 
     const cleanedBuffer = await cleanPdfBuffer(file.buffer);
     const srcDoc = await PDFDocument.load(cleanedBuffer, { ignoreEncryption: true });
     const totalPages = srcDoc.getPageCount();
 
-    // IMPORTANTE: distinguimos por la ruta real, no solo por "mode".
-    // /extract y /reorder son alias de este mismo router (ver server.js) y NO mandan
-    // un "mode" propio, así que caen en el valor por defecto 'individual'. Si solo
-    // mirásemos "mode" para decidir si generar ZIP, extract/reorder generarían ZIP
-    // por error (y el frontend los descargaría como .pdf -> archivo "corrupto").
-    const isSplitEndpoint = req.baseUrl === '/split';
-
-    // MODO 1 (solo /split): páginas individuales -> ZIP con un PDF de 1 página cada una.
-    if (isSplitEndpoint && (mode === 'individual' || mode === 'split_all')) {
+    // MODO 1: Páginas individuales -> ZIP con un PDF de 1 página por cada página seleccionada.
+    if (mode === 'individual' || mode === 'split_all') {
       const targetIndices = rawPages
         ? parsePageRanges(rawPages, totalPages)
         : Array.from({ length: totalPages }, (_, i) => i);
@@ -55,10 +49,10 @@ router.post('/', upload.any(), async (req, res) => {
       return res.send(zipBuffer);
     }
 
-    // MODO 2 (solo /split): división por rangos.
+    // MODO 2: División por rangos.
     // Por defecto -> ZIP con un PDF por cada rango/grupo separado por comas.
     // Si mergeRanges === true -> un único PDF con todos los rangos, en el orden dado.
-    if (isSplitEndpoint && (mode === 'range' || mode === 'ranges')) {
+    if (mode === 'range' || mode === 'ranges') {
       if (!rawPages) {
         return res.status(400).send('No se han especificado rangos válidos.');
       }
@@ -116,25 +110,7 @@ router.post('/', upload.any(), async (req, res) => {
       return res.send(zipBuffer);
     }
 
-    // MODO 3: /extract, /reorder, y cualquier caso no cubierto arriba.
-    // Siempre un único PDF con las páginas indicadas, en ese orden.
-    const targetIndices = parsePageRanges(rawPages, totalPages);
-
-    if (targetIndices.length === 0) {
-      return res.status(400).send('No se han especificado páginas válidas para procesar.');
-    }
-
-    const newPdf = await PDFDocument.create();
-
-    for (const pageIdx of targetIndices) {
-      const [copiedPage] = await newPdf.copyPages(srcDoc, [pageIdx]);
-      newPdf.addPage(copiedPage);
-    }
-
-    const pdfBytes = await newPdf.save();
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="documento_procesado.pdf"');
-    return res.send(Buffer.from(pdfBytes));
+    return res.status(400).send(`Modo de división no reconocido: "${mode}".`);
 
   } catch (error) {
     console.error('Error en splitRoute:', error);
