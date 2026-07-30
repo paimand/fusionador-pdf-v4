@@ -58,7 +58,7 @@ router.post('/', upload.any(), async (req, res) => {
     // MODO 2 (solo /split): división por rangos.
     // Por defecto -> ZIP con un PDF por cada rango/grupo separado por comas.
     // Si mergeRanges === true -> un único PDF con todos los rangos, en el orden dado.
-    if (isSplitEndpoint && mode === 'ranges') {
+    if (isSplitEndpoint && (mode === 'range' || mode === 'ranges')) {
       if (!rawPages) {
         return res.status(400).send('No se han especificado rangos válidos.');
       }
