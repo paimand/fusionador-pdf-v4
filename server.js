@@ -14,14 +14,19 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 // Carga de Rutas Modularizadas
 const mergeRoute = require('./src/routes/mergeRoute');
 const splitRoute = require('./src/routes/splitRoute');
+const extractRoute = require('./src/routes/extractRoute');
+const reorderRoute = require('./src/routes/reorderRoute');
 const deleteRoute = require('./src/routes/deleteRoute');
 const compressRoute = require('./src/routes/compressRoute');
 
-// Registro de endpoints y alias
+// Registro de endpoints. Cada herramienta tiene ahora su propia ruta e
+// implementación independiente (antes /extract y /reorder eran alias de
+// /split, lo que provocaba que cambios en una herramienta rompieran a
+// las otras sin avisar).
 app.use('/merge', mergeRoute);
 app.use('/split', splitRoute);
-app.use('/extract', splitRoute); // Alias: Extraer utiliza la lógica de split
-app.use('/reorder', splitRoute); // Alias: Reordenar utiliza la lógica de split
+app.use('/extract', extractRoute);
+app.use('/reorder', reorderRoute);
 app.use('/delete', deleteRoute);
 app.use('/compress', compressRoute);
 
