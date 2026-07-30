@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const upload = require('../utils/uploadConfig');
 const { cleanPdfBuffer, parsePageRanges, createPdfFromIndices } = require('../utils/pdfUtils');
+const JSZip = require('jszip');
 
 /**
  * POST /api/pdf/split
@@ -27,12 +28,29 @@ router.post('/', upload.single('file'), async (req, res) => {
         const pdf = await PDFDocument.load(cleanedBuffer, { ignoreEncryption: true });
         const totalPages = pdf.getPageCount();
 
+        // --- Caso: Dividir en páginas individuales ---
         if (mode === 'individual') {
-            // Pendiente de implementar: devolver un ZIP con cada página
-            return res.status(501).send('Dividir en páginas individuales requiere generar un ZIP. Pendiente de implementar.');
+            const zip = new JSZip();
+            const baseName = req.file.originalname.replace(/\.pdf$/i, '') || 'pagina';
+
+            // Generar un PDF por cada página
+            for (let i = 1; i <= totalPages; i++) {
+                // Índice base 0 para la página actual
+                const pageIndex = i - 1;
+                const pageBuffer = await createPdfFromIndices(cleanedBuffer, [pageIndex]);
+                // Añadir al ZIP con nombre "pagina_1.pdf", "pagina_2.pdf", ...
+                zip.file(`${baseName}_${i}.pdf`, pageBuffer);
+            }
+
+            // Generar el archivo ZIP
+            const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename="${baseName}_paginas.zip"`);
+            return res.send(zipBuffer);
         }
 
-        // Modo por rangos
+        // --- Caso: Dividir por rangos ---
         if (!ranges || ranges.trim() === '') {
             return res.status(400).send('Debes especificar un rango de páginas (ej. "1-3,5").');
         }
