@@ -71,6 +71,34 @@ if (dropZoneCompress && fileInputCompress && compressBtn) {
         }
     });
 
+    // Mensajes rotativos mientras esperamos la respuesta del servidor.
+    // No es progreso real página a página (eso requeriría streaming en
+    // vivo desde Ghostscript), pero evita la sensación de "colgado".
+    const PROGRESS_MESSAGES = [
+        '⏳ Analizando el documento...',
+        '⏳ Optimizando imágenes internas...',
+        '⏳ Reduciendo el tamaño del PDF...',
+        '⏳ Los archivos grandes pueden tardar un poco más...',
+        '⏳ Casi listo...'
+    ];
+    let progressInterval = null;
+
+    function startProgressMessages() {
+        let idx = 0;
+        if (typeof showStatus === 'function') showStatus('compressStatus', PROGRESS_MESSAGES[idx]);
+        progressInterval = setInterval(() => {
+            idx = (idx + 1) % PROGRESS_MESSAGES.length;
+            if (typeof showStatus === 'function') showStatus('compressStatus', PROGRESS_MESSAGES[idx]);
+        }, 4000);
+    }
+
+    function stopProgressMessages() {
+        if (progressInterval) {
+            clearInterval(progressInterval);
+            progressInterval = null;
+        }
+    }
+
     // Procesamiento de compresión: sube el archivo tal cual al backend
     compressBtn.addEventListener('click', async () => {
         if (!compressFile) {
@@ -80,7 +108,7 @@ if (dropZoneCompress && fileInputCompress && compressBtn) {
 
         compressBtn.disabled = true;
         if (typeof showLoading === 'function') showLoading(true);
-        if (typeof showStatus === 'function') showStatus('compressStatus', '⏳ Comprimiendo documento...');
+        startProgressMessages();
 
         try {
             const selectedRadio = document.querySelector('input[name="compressLevel"]:checked');
@@ -147,6 +175,7 @@ if (dropZoneCompress && fileInputCompress && compressBtn) {
             }
         } finally {
             compressBtn.disabled = false;
+            stopProgressMessages();
             if (typeof showLoading === 'function') showLoading(false);
         }
     });
