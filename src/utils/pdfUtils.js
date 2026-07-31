@@ -80,6 +80,53 @@ function parsePageRanges(input, totalPages) {
 }
 
 /**
+ * Comprime un PDF de verdad usando Ghostscript, en vez de rasterizar páginas
+ * a imágenes en el cliente (ese enfoque anterior podía AUMENTAR el tamaño en
+ * PDFs de texto/vectoriales, y era lo que causaba el bug reportado).
+ *
+ * Niveles mapeados a los presets estándar de Ghostscript:
+ * - extreme      -> /screen   (72 dpi, máxima compresión, menor calidad)
+ * - recommended  -> /ebook    (150 dpi, equilibrio calidad/tamaño)
+ * - low          -> /printer  (300 dpi, mínima compresión, mejor calidad)
+ */
+async function compressPdfBuffer(inputBuffer, level) {
+  return new Promise((resolve, reject) => {
+    const presetMap = {
+      extreme: '/screen',
+      recommended: '/ebook',
+      low: '/printer'
+    };
+    const preset = presetMap[level] || presetMap.recommended;
+
+    const tempDir = os.tmpdir();
+    const uniqueId = Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+    const inPath = path.join(tempDir, `cin_${uniqueId}.pdf`);
+    const outPath = path.join(tempDir, `cout_${uniqueId}.pdf`);
+
+    fs.writeFileSync(inPath, inputBuffer);
+
+    const cmd = `gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=${preset} ` +
+      `-dNOPAUSE -dQUIET -dBATCH -sOutputFile="${outPath}" "${inPath}"`;
+
+    exec(cmd, (error) => {
+      try { fs.unlinkSync(inPath); } catch (e) {}
+
+      if (error || !fs.existsSync(outPath)) {
+        return reject(new Error('Error al comprimir el PDF con Ghostscript.'));
+      }
+
+      try {
+        const finalBuffer = fs.readFileSync(outPath);
+        fs.unlinkSync(outPath);
+        resolve(finalBuffer);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+/**
  * Extrae de forma segura el archivo recibido en la petición Multer
  */
 function getUploadedFile(req) {
@@ -92,6 +139,7 @@ function getUploadedFile(req) {
 
 module.exports = {
   cleanPdfBuffer,
+  compressPdfBuffer,
   parsePageRanges,
   getUploadedFile
 };
