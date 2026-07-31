@@ -6,10 +6,12 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware para ficheros estáticos
 app.use(express.static(path.join(__dirname, 'public')));
-// Límite subido a 50mb: /compress recibe páginas rasterizadas en base64
-// dentro del JSON, que pueden pesar bastante más que el límite por defecto (100kb).
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Todas las herramientas (incluida /compress ahora) reciben el PDF como
+// multipart/form-data vía multer, no como JSON, así que no necesitamos
+// un límite grande aquí. Dejamos un margen razonable por si algún body
+// JSON pequeño lo necesita en el futuro.
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // Carga de Rutas Modularizadas
 const mergeRoute = require('./src/routes/mergeRoute');
