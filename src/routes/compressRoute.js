@@ -24,7 +24,7 @@ router.post('/', upload.any(), async (req, res) => {
 
   } catch (error) {
     console.error('Error en compressRoute:', error);
-    res.status(500).send('Error durante la compresión del PDF.');
+    res.status(500).send(error.message || 'Error durante la compresión del PDF.');
   }
 });
 
