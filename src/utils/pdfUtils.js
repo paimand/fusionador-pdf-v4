@@ -105,13 +105,30 @@ async function compressPdfBuffer(inputBuffer, level) {
 
     fs.writeFileSync(inPath, inputBuffer);
 
+    // "< /dev/null" evita que gs se quede esperando datos por stdin si por
+    // cualquier motivo intenta leer de ahí, una causa típica de procesos
+    // que se quedan "colgados" indefinidamente dentro de un contenedor.
     const cmd = `gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=${preset} ` +
-      `-dNOPAUSE -dQUIET -dBATCH -sOutputFile="${outPath}" "${inPath}"`;
+      `-dNOPAUSE -dQUIET -dBATCH -dNOPROMPT -sOutputFile="${outPath}" "${inPath}" < /dev/null`;
 
-    exec(cmd, (error) => {
+    // Timeout de seguridad: si Ghostscript no termina en este tiempo lo matamos
+    // y devolvemos un error claro, en vez de dejar la petición colgada para
+    // siempre (que es justo el problema que estaba sufriendo el usuario).
+    const TIMEOUT_MS = 55000;
+
+    exec(cmd, { timeout: TIMEOUT_MS, killSignal: 'SIGKILL' }, (error) => {
       try { fs.unlinkSync(inPath); } catch (e) {}
 
-      if (error || !fs.existsSync(outPath)) {
+      if (error) {
+        try { if (fs.existsSync(outPath)) fs.unlinkSync(outPath); } catch (e) {}
+
+        if (error.killed || error.signal === 'SIGKILL' || error.signal === 'SIGTERM') {
+          return reject(new Error('La compresión ha tardado demasiado y se ha cancelado. Prueba con un nivel de compresión más agresivo o divide el PDF en partes más pequeñas.'));
+        }
+        return reject(new Error('Error al comprimir el PDF con Ghostscript.'));
+      }
+
+      if (!fs.existsSync(outPath)) {
         return reject(new Error('Error al comprimir el PDF con Ghostscript.'));
       }
 
