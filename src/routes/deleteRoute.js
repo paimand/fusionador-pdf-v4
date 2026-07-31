@@ -4,6 +4,8 @@ const { PDFDocument } = require('pdf-lib');
 const upload = require('../utils/uploadConfig');
 const { cleanPdfBuffer, parsePageRanges, getUploadedFile } = require('../utils/pdfUtils');
 
+// Ruta dedicada a "Eliminar páginas". El frontend (delete.js) manda:
+// FormData { file, pagesToDelete: "2,5,7" } -> páginas 1-based a eliminar.
 router.post('/', upload.any(), async (req, res) => {
   try {
     const file = getUploadedFile(req);
@@ -11,7 +13,7 @@ router.post('/', upload.any(), async (req, res) => {
       return res.status(400).send('No se ha recibido ningún archivo PDF.');
     }
 
-    const rawPagesToDelete = req.body.pages || req.body.pagesToDelete || req.body.deletedPages || '';
+    const rawPagesToDelete = req.body.pagesToDelete || '';
 
     const cleanedBuffer = await cleanPdfBuffer(file.buffer);
     const srcDoc = await PDFDocument.load(cleanedBuffer, { ignoreEncryption: true });
@@ -25,9 +27,10 @@ router.post('/', upload.any(), async (req, res) => {
     }
 
     // Calcular las páginas a CONSERVAR
+    const deleteSet = new Set(indicesToDelete);
     const indicesToKeep = [];
     for (let i = 0; i < totalPages; i++) {
-      if (!indicesToDelete.includes(i)) {
+      if (!deleteSet.has(i)) {
         indicesToKeep.push(i);
       }
     }
