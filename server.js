@@ -37,6 +37,25 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });
 });
 
+// Manejador de errores de Multer (subida de archivos): sin esto, superar
+// los límites de tamaño/número de archivos configurados en uploadConfig.js
+// devuelve la página de error HTML por defecto de Express, en vez de un
+// mensaje claro que el frontend pueda mostrar (mismo tipo de problema que
+// el PayloadTooLargeError original de /compress).
+const multer = require('multer');
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).send('Uno de los archivos supera el tamaño máximo permitido (50MB).');
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(413).send('Se ha superado el número máximo de archivos permitido (30).');
+    }
+    return res.status(400).send('Error al procesar los archivos subidos: ' + err.message);
+  }
+  next(err);
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 SuitePDF v4 ejecutándose en el puerto ${PORT}`);
 });
