@@ -1,5 +1,6 @@
 // ============================================================
-// COMPRESS LOGIC - CÁLCULO REAL DE TAMAÑOS Y PORCENTAJES
+// COMPRESS LOGIC - Sube el PDF original al servidor y lo comprime
+// con Ghostscript (ya NO rasteriza páginas a imágenes en el navegador)
 // ============================================================
 let compressFile = null;
 const dropZoneCompress = document.getElementById('dropZoneCompress');
@@ -49,7 +50,7 @@ if (dropZoneCompress && fileInputCompress && compressBtn) {
                 compressFile = file;
                 const pText = dropZoneCompress.querySelector('p');
                 if (pText) pText.textContent = `📄 ${compressFile.name}`;
-                
+
                 const dataTransfer = new DataTransfer();
                 dataTransfer.items.add(compressFile);
                 fileInputCompress.files = dataTransfer.files;
@@ -70,86 +71,28 @@ if (dropZoneCompress && fileInputCompress && compressBtn) {
         }
     });
 
-    // Procesamiento optimizado de compresión
+    // Procesamiento de compresión: sube el archivo tal cual al backend
     compressBtn.addEventListener('click', async () => {
-        if (!compressFile) { 
-            alert('Selecciona un PDF para comprimir'); 
-            return; 
+        if (!compressFile) {
+            alert('Selecciona un PDF para comprimir');
+            return;
         }
 
         compressBtn.disabled = true;
         if (typeof showLoading === 'function') showLoading(true);
-        if (typeof showStatus === 'function') showStatus('compressStatus', '⏳ Inicializando motor PDF...');
+        if (typeof showStatus === 'function') showStatus('compressStatus', '⏳ Comprimiendo documento...');
 
         try {
             const selectedRadio = document.querySelector('input[name="compressLevel"]:checked');
             const level = selectedRadio ? selectedRadio.value : 'recommended';
 
-            const arrayBuffer = await readFileAsArrayBuffer(compressFile);
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-            const totalPages = pdf.numPages;
+            const formData = new FormData();
+            formData.append('file', compressFile);
+            formData.append('level', level);
 
-            // Parámetros calibrados para 12%, 45% y 95%
-            let maxDimension, quality;
-            switch (level) {
-                case 'extreme': 
-                    maxDimension = 520; 
-                    quality = 0.18; 
-                    break;
-                case 'recommended': 
-                    maxDimension = 1500; 
-                    quality = 0.72; 
-                    break;
-                case 'low': 
-                    maxDimension = 2400; 
-                    quality = 0.92; 
-                    break;
-                default: 
-                    maxDimension = 1500; 
-                    quality = 0.72;
-            }
-
-            const images = [];
-
-            for (let i = 1; i <= totalPages; i++) {
-                if (typeof showStatus === 'function') {
-                    showStatus('compressStatus', `⏳ Comprimiendo página ${i} de ${totalPages}...`);
-                }
-                
-                const page = await pdf.getPage(i);
-                
-                const unscaledViewport = page.getViewport({ scale: 1.0 });
-                const currentMax = Math.max(unscaledViewport.width, unscaledViewport.height);
-                
-                let scale = 1.0;
-                if (currentMax > maxDimension) {
-                    scale = maxDimension / currentMax;
-                }
-
-                const viewport = page.getViewport({ scale });
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.floor(viewport.width);
-                canvas.height = Math.floor(viewport.height);
-                const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
-
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                await page.render({ canvasContext: ctx, viewport }).promise;
-
-                const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                images.push(dataUrl);
-            }
-
-            if (typeof showStatus === 'function') {
-                showStatus('compressStatus', '⏳ Reconstruyendo documento PDF...');
-            }
-
-            // Envío al backend
             const resp = await fetch('/compress', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ images, level })
+                body: formData
             });
 
             if (!resp.ok) {
@@ -159,9 +102,7 @@ if (dropZoneCompress && fileInputCompress && compressBtn) {
 
             const blob = await resp.blob();
 
-            // ============================================================
-            // CÁLCULO DE TAMAÑOS Y PORCENTAJE REAL
-            // ============================================================
+            // Cálculo de tamaños y porcentaje real
             const originalSizeBytes = compressFile.size;
             const compressedSizeBytes = blob.size;
 
@@ -172,8 +113,6 @@ if (dropZoneCompress && fileInputCompress && compressBtn) {
             if (originalSizeBytes > 0) {
                 percentReduced = Math.round(((originalSizeBytes - compressedSizeBytes) / originalSizeBytes) * 100);
             }
-            // Asegurar que no sea negativo si por algún motivo excepcional el peso aumentara
-            if (percentReduced < 0) percentReduced = 0;
 
             // Descargar el archivo procesado
             if (typeof downloadFile === 'function') {
@@ -189,8 +128,15 @@ if (dropZoneCompress && fileInputCompress && compressBtn) {
                 window.URL.revokeObjectURL(url);
             }
 
-            // Mensaje enriquecido con los datos reales
-            const successMessage = `✅ PDF comprimido correctamente. ¡Tus PDF ahora pesan un ${percentReduced}% menos! de ${originalFormatted} a ${compressedFormatted}`;
+            // Mensaje enriquecido con los datos reales. Si el resultado pesa igual o más
+            // que el original (puede pasar en PDFs ya muy optimizados), lo indicamos
+            // en vez de mostrar un "0%" o un porcentaje negativo engañoso.
+            let successMessage;
+            if (percentReduced > 0) {
+                successMessage = `✅ PDF comprimido correctamente. ¡Tus PDF ahora pesan un ${percentReduced}% menos! de ${originalFormatted} a ${compressedFormatted}`;
+            } else {
+                successMessage = `✅ PDF procesado. El archivo original ya estaba muy optimizado (${originalFormatted}); el resultado pesa ${compressedFormatted}.`;
+            }
 
             if (typeof showStatus === 'function') {
                 showStatus('compressStatus', successMessage);
