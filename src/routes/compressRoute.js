@@ -1,51 +1,26 @@
 const express = require('express');
 const router = express.Router();
-const { PDFDocument } = require('pdf-lib');
-const { cleanPdfBuffer } = require('../utils/pdfUtils');
+const upload = require('../utils/uploadConfig');
+const { compressPdfBuffer, getUploadedFile } = require('../utils/pdfUtils');
 
-// Nota: esta ruta NO usa multer/upload.any(). El frontend (compress.js) no manda el
-// PDF original: rasteriza cada página a JPEG en el navegador y envía esas imágenes
-// como JSON ({ images, level }). El bug anterior era que este endpoint esperaba un
-// archivo multipart (req.file) que nunca llegaba, y además el body-parser rechazaba
-// el JSON porque superaba el límite por defecto de 100kb (ver server.js).
-router.post('/', async (req, res) => {
+// Ruta dedicada a "Comprimir PDF". Recibe el archivo original tal cual
+// (multipart, igual que split/merge/delete) junto con el nivel elegido,
+// y lo comprime en el servidor con Ghostscript. Ya NO rasteriza páginas
+// a imágenes en el navegador: ese enfoque anterior podía aumentar el
+// tamaño en PDFs de texto/vectoriales en vez de reducirlo.
+router.post('/', upload.any(), async (req, res) => {
   try {
-    const { images, level } = req.body;
-
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      return res.status(400).send('No se han recibido páginas para comprimir.');
+    const file = getUploadedFile(req);
+    if (!file) {
+      return res.status(400).send('No se ha recibido ningún archivo PDF.');
     }
 
-    const newPdf = await PDFDocument.create();
-
-    for (const dataUrl of images) {
-      const base64 = String(dataUrl).split(',')[1];
-      if (!base64) continue;
-
-      const imgBytes = Buffer.from(base64, 'base64');
-      const jpgImage = await newPdf.embedJpg(imgBytes);
-      const page = newPdf.addPage([jpgImage.width, jpgImage.height]);
-
-      page.drawImage(jpgImage, {
-        x: 0,
-        y: 0,
-        width: jpgImage.width,
-        height: jpgImage.height,
-      });
-    }
-
-    if (newPdf.getPageCount() === 0) {
-      return res.status(400).send('No se pudo reconstruir el PDF a partir de las imágenes recibidas.');
-    }
-
-    let pdfBytes = await newPdf.save();
-
-    // Optimización adicional de la estructura interna con qpdf
-    pdfBytes = await cleanPdfBuffer(Buffer.from(pdfBytes));
+    const level = req.body.level || 'recommended';
+    const compressedBuffer = await compressPdfBuffer(file.buffer, level);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="documento_comprimido.pdf"');
-    return res.send(pdfBytes);
+    return res.send(compressedBuffer);
 
   } catch (error) {
     console.error('Error en compressRoute:', error);
