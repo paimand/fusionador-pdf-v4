@@ -1,8 +1,9 @@
 FROM node:18-slim
 
-# Instalar qpdf para desproteger/limpiar PDFs bancarios o firmados
+# Instalar qpdf (desproteger/limpiar PDFs) y ghostscript (compresión real de PDF)
 RUN apt-get update && apt-get install -y \
     qpdf \
+    ghostscript \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
